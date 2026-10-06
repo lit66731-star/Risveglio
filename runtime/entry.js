@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Risveglio · Runtime Entry（Phase 5-C）
-   流程：computeRevision → gate → stop / (continue → Context Assembly → World → Actor → Guard)。
-   changed === true 之后：组装 Runtime Context（Phase 4）→ World（5-A）→ Actor（5-B）→ Guard（5-C），然后停住。
-   Guard 是收口检查点：跨看 world + actor（Contract 明确授权），不是越层偷读。
-   Core AI 等 downstream 尚未接入。
-   每一层只消费上一层明确提供的数据；Guard 是唯一明确声明的多分支收口例外。
+   Risveglio · Runtime Entry（Phase 6）
+   流程（确定性部分）：computeRevision → gate → stop / (continue → Context → World → Actor → Guard → Core Input)。
+   changed === true 且 gate 通过后：层层组装到 Guard（收口检查点，跨看 world+actor），
+   再 assembleCore 组装 Core Input（最终消费者，跨看 context+world+actor+guard），然后停住。
+   非确定性部分：generateCore(coreInput, coreConfig) 是独立显式步骤，run() 本身不发请求、不循环。
+   跨层例外只有两处且均已写死：Guard=检查点、Core=最终消费者。
    ========================================================================== */
 
 import { computeRevision } from './revision.js';
@@ -13,20 +13,23 @@ import { assembleContext } from './context.js';
 import { assembleWorld } from './world.js';
 import { assembleActor } from './actor.js';
 import { assembleGuard } from './guard.js';
+import { assembleCore, generateCore } from './core.js';
 
-export { assembleContext, assembleWorld, assembleActor, assembleGuard };
+export { assembleContext, assembleWorld, assembleActor, assembleGuard, assembleCore, generateCore };
 
 /**
- * @returns {{stopped: boolean, reason?: string, context?: object, world?: object, actor?: object, guard?: object}}
+ * 确定性 Pipeline（一次 run 最多到 Core Input，绝不发请求）。
+ * @returns {{stopped: boolean, reason?: string, context?: object, world?: object, actor?: object, guard?: object, coreInput?: object}}
  */
-export function run(adapters = {}, matrix = {}) {
+export function run(adapters = {}, matrix = {}, coreConfig = {}) {
     const revision = computeRevision(adapters, matrix);
     const decision = gate(revision);
     if (decision.stopped) return decision;
-    // changed === true：层层组装；Guard 只吃 world + actor（跨层收口例外），不回读 context/adapter。
+    // changed === true：层层组装；Guard 只吃 world+actor，Core 吃全景，均不回读 adapter。
     const context = assembleContext(adapters, matrix);
     const world = assembleWorld(context);
     const actor = assembleActor(context, world);
     const guard = assembleGuard(world, actor);
-    return { stopped: false, context, world, actor, guard };
+    const coreInput = assembleCore(context, world, actor, guard, coreConfig);
+    return { stopped: false, context, world, actor, guard, coreInput };
 }

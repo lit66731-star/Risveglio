@@ -167,10 +167,20 @@ jQuery(async () => {
         console.warn('[Risveglio] Runtime Revision 模块加载失败：', settled[4].reason);
     }
 
-    // Runtime Entry（Phase 5-C）：computeRevision → NO CHANGE Gate → stop / (continue → Context Assembly → World → Actor → Guard)。
+    // Core AI 配置（Phase 6）：第三套独立 API（url/model/key）+ 生成 tokenBudget。默认禁用。
+    // 暂不接 UI/持久化，未来由设置页写入 window.Risveglio.coreConfig。
+    window.Risveglio.coreConfig = window.Risveglio.coreConfig || {
+        enabled: false,
+        api: { url: '', key: '', model: '' },
+        tokenBudget: 0,
+    };
+
+    // Runtime Entry（Phase 6）：computeRevision → NO CHANGE Gate → stop / (continue → Context → World → Actor → Guard → Core Input)。
+    // run() 只做确定性组装（到 Core Input），generate() 是独立显式步骤（唯一发请求/非确定的位置）。
     if (settled[5].status === 'fulfilled') {
         window.Risveglio.runtime = {
-            run: () => settled[5].value.run(window.Risveglio.adapters, window.Risveglio.matrix),
+            run: () => settled[5].value.run(window.Risveglio.adapters, window.Risveglio.matrix, window.Risveglio.coreConfig),
+            generate: (coreInput) => settled[5].value.generateCore(coreInput, window.Risveglio.coreConfig),
             assemble: () => settled[5].value.assembleContext(window.Risveglio.adapters, window.Risveglio.matrix),
             world: (ctx) => settled[5].value.assembleWorld(ctx),
             actor: (ctx, world) => settled[5].value.assembleActor(ctx, world),
