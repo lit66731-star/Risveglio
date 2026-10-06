@@ -6,13 +6,14 @@
    错误码：unavailable / no_scope / null_result / unexpected_shape / threw
    ========================================================================== */
 
-import { makeEnvelope, probe, deepClone, currentScopeKey } from './_shared.js';
+import { makeEnvelope, probe, deepClone, currentScopeKey, fingerprint } from './_shared.js';
 
 const SOURCE = 'serendipity';
 
-// §9 缓存：按「角色 + 聊天」作用域隔离。getContext() 一次调用缓存 context + revision；
-// getRevision() 只读当前 scope 已缓存的 revision，绝不为了补缓存再次调 getDirectorContext()。
-const _cache = new Map(); // scopeKey -> { revision, context, foreshadows, at }
+// §9 缓存：按「角色 + 聊天」作用域隔离。getContext() 缓存 director context + directorRevision；
+// getEntities() 缓存 entitiesRevision（含 degraded 状态）；getRevision() 只读缓存里的两个 revision
+// 并稳定合成 Adapter-level revision，绝不为了补缓存再次调上游（getDirectorContext / getEntities）。
+const _cache = new Map(); // scopeKey -> { directorRevision, entitiesRevision, context, foreshadows, at }
 
 function _ns() {
     return (typeof window !== 'undefined') ? window.Serendipity : null;
@@ -70,7 +71,7 @@ function getContext(opts = {}) {
     });
 
     const entry = _cache.get(scopeKey) || {};
-    entry.revision = revision;
+    entry.directorRevision = revision;
     entry.context = data;
     entry.at = Date.now();
     _cache.set(scopeKey, entry);
@@ -110,11 +111,32 @@ function getForeshadows() {
     }
 }
 
+/** 把信封的 revision 相关元数据抽成稳定状态（不含 data），供 getRevision() 合成指纹。 */
+function _revisionState(env) {
+    return {
+        available: env.available,
+        compatible: env.compatible,
+        revision: env.revision ?? null,
+        error: env.meta?.error ?? null,
+    };
+}
+
 /** getEntities()：结构化角色实体（唯一 id + 身份域 world·timeline·identity + 状态），供 Actor 做身份解析。纯读，不触发 AI。 */
 function getEntities() {
-    if (!probe(_ns(), 'getEntities')) return _degraded('unavailable');
     const scopeKey = currentScopeKey();
     if (scopeKey == null) return _degraded('no_scope');
+    const env = _readEntities();
+    // 缓存 entities revision 状态（含 degraded：unavailable/null_result/threw/unexpected_shape），
+    // 供 getRevision() 与 directorRevision 合成；只存 revision 元数据，绝不缓存完整 entities 数据。
+    const entry = _cache.get(scopeKey) || {};
+    entry.entitiesRevision = _revisionState(env);
+    entry.at = Date.now();
+    _cache.set(scopeKey, entry);
+    return env;
+}
+
+function _readEntities() {
+    if (!probe(_ns(), 'getEntities')) return _degraded('unavailable');
     let raw = null;
     try {
         raw = window.Serendipity.getEntities();
@@ -133,22 +155,22 @@ function getEntities() {
             meta: { source: SOURCE, degraded: true, error: 'unexpected_shape' },
         });
     }
-    const revision = raw.revision;
-    const data = deepClone(raw.items); // 结构化实体数组；name 只是显示属性，身份靠 id + world/timeline/identity
     return makeEnvelope(SOURCE, {
         available: true,
         compatible: true,
-        revision,
-        data,
+        revision: raw.revision,
+        data: deepClone(raw.items), // 结构化实体数组；name 只是显示属性，身份靠 id + world/timeline/identity
         meta: { source: SOURCE, degraded: false, error: null },
     });
 }
 
-/** §9：只读当前 scope 已缓存的 revision，绝不额外调 getDirectorContext()。 */
+/** §9：只读缓存里的 directorRevision + entitiesRevision，稳定合成 Adapter-level revision；绝不重新调上游。 */
 function getRevision() {
     const scopeKey = currentScopeKey();
     if (scopeKey == null) return null;
-    return _cache.get(scopeKey)?.revision ?? null;
+    const entry = _cache.get(scopeKey);
+    if (!entry) return null;
+    return fingerprint([entry.directorRevision ?? null, entry.entitiesRevision ?? null]);
 }
 
 export const SerendipityAdapter = {
