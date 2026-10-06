@@ -1,24 +1,27 @@
 /* ==========================================================================
-   Risveglio · Runtime Entry（Phase 4）
-   流程：computeRevision → gate → stop / (continue → Context Assembly)。
-   changed === true 之后只做一件事：组装 Runtime Context（Phase 4），然后停住。
-   World / Actor / Guard / Core AI 等 downstream 尚未接入。
+   Risveglio · Runtime Entry（Phase 5-A）
+   流程：computeRevision → gate → stop / (continue → Context Assembly → World)。
+   changed === true 之后：组装 Runtime Context（Phase 4），再从它组装 World（Phase 5-A），然后停住。
+   Actor / Guard / Core AI 等 downstream 尚未接入。
+   每一层只消费上一层明确提供的数据，不越层偷读。
    ========================================================================== */
 
 import { computeRevision } from './revision.js';
 import { gate } from './gate.js';
 import { assembleContext } from './context.js';
+import { assembleWorld } from './world.js';
 
-export { assembleContext };
+export { assembleContext, assembleWorld };
 
 /**
- * @returns {{stopped: boolean, reason?: string, context?: object}}
+ * @returns {{stopped: boolean, reason?: string, context?: object, world?: object}}
  */
 export function run(adapters = {}, matrix = {}) {
     const revision = computeRevision(adapters, matrix);
     const decision = gate(revision);
     if (decision.stopped) return decision;
-    // changed === true：组装当前事实上下文（Assembly 纯搬运，不做 Recall/筛选）。
+    // changed === true：组装 Runtime Context（纯搬运），再从它组装 World（纯读，不重捞上游）。
     const context = assembleContext(adapters, matrix);
-    return { stopped: false, context };
+    const world = assembleWorld(context);
+    return { stopped: false, context, world };
 }
