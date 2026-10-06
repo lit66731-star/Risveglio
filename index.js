@@ -125,6 +125,7 @@ jQuery(async () => {
         import('./adapters/amor.js'),
         import('./adapters/chat.js'),
         import('./adapters/capability.js'),
+        import('./runtime/revision.js'),
     ]);
     window.Risveglio = window.Risveglio || {};
     window.Risveglio.adapters = window.Risveglio.adapters || {};
@@ -147,6 +148,22 @@ jQuery(async () => {
     }
     if (window.Risveglio.matrix) {
         console.log('[Risveglio] Adapter Matrix:', window.Risveglio.matrix);
+    }
+
+    // Runtime Revision v1：Adapter 状态 → 稳定指纹 → changed。只比较、不解释（Phase 2）。
+    if (settled[4].status === 'fulfilled') {
+        window.Risveglio.revision = {
+            compute: () => settled[4].value.computeRevision(window.Risveglio.adapters, window.Risveglio.matrix),
+            last: () => settled[4].value.lastRevision(),
+        };
+        try {
+            const baseline = window.Risveglio.revision.compute();
+            console.log('[Risveglio] Revision baseline:', baseline);
+        } catch (err) {
+            console.warn('[Risveglio] Revision 基线计算失败：', err);
+        }
+    } else {
+        console.warn('[Risveglio] Runtime Revision 模块加载失败：', settled[4].reason);
     }
 
     buildButton();
