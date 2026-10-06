@@ -1,0 +1,16 @@
+{
+    "name": "risveglio",
+    "display_name": "Risveglio",
+    "description": "Risveglio（觉醒）—— 统一剧情智能面板，底部悬浮胶囊 Dock + 多页。当前为空白框架（UI 骨架）阶段。",
+    "author": "cc_test",
+    "version": "1.0.0",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "auto_update": true,
+    "hooks": {
+        "update": "reloadOnUpdate"
+    }
+}

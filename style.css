@@ -1,0 +1,245 @@
+/* ==========================================================================
+   Risveglio · 统一剧情智能面板样式
+   视觉：冷静 / 深邃 / 精密 / 未来感 / 运行中的生命感
+        —— 黑灰米白骨架；识别色（强调色）暂未定，先留 --ris-accent 占位
+   结构：底部悬浮胶囊 Dock + 多页
+   ========================================================================== */
+
+#st-risveglio {
+    /* —— 设计 token —— */
+    --ris-bg: #0D0E10;              /* 背景 */
+    --ris-surface: #15171A;         /* 主表面 */
+    --ris-surface-2: #1C1F23;       /* 次表面 */
+    --ris-text: #E7E5E1;            /* 文字 */
+    --ris-text-2: #8B8D91;          /* 次文字 */
+    --ris-text-3: #55575B;          /* 更弱（提示/占位） */
+    --ris-border: rgba(255, 255, 255, 0.08);
+    --ris-border-2: rgba(255, 255, 255, 0.14);
+    --ris-accent: #8B8D91;          /* TBD：识别色暂未定，先用中性灰占位，定后只改这一个 */
+
+    --ris-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --ris-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter,
+        "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    width: 100dvw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 2147483000 !important;
+    max-width: none;
+    max-height: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
+    background: var(--ris-bg);      /* 纯色，无大面积渐变 */
+    border: none;
+    color: var(--ris-text);
+    font-size: 13px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--ris-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+#st-risveglio,
+#st-risveglio * { text-shadow: none !important; -webkit-tap-highlight-color: transparent !important; }
+#st-risveglio { touch-action: manipulation; -webkit-user-select: text; user-select: text; }
+
+/* ============ 头部 ============ */
+.ris__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--ris-border);
+    flex: 0 0 auto;
+}
+.ris__brand { display: flex; align-items: baseline; gap: 12px; }
+.ris__brand-name {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    color: var(--ris-text);
+}
+.ris__brand-ver {
+    font-family: var(--ris-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ris-text-3);
+}
+.ris__head-right { display: flex; align-items: center; gap: 18px; }
+.ris__status { display: flex; align-items: center; gap: 7px; }
+.ris__status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ris-accent);
+    animation: ris-breathe 2.6s ease-in-out infinite;
+}
+.ris__status-text {
+    font-family: var(--ris-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--ris-text-3);
+}
+.ris__close {
+    width: 28px; height: 28px; border: none; background: transparent;
+    color: var(--ris-text-3); border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s; flex: 0 0 auto;
+}
+.ris__close:hover { background: var(--ris-surface-2); color: var(--ris-text); }
+.ris__close svg { width: 15px; height: 15px; }
+
+/* ============ 主体（多页容器） ============ */
+.ris__body {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+.ris__page {
+    position: absolute;
+    inset: 0;
+    display: none;
+}
+.ris__page.is-on {
+    display: flex;
+    flex-direction: column;
+    animation: ris-page-in 0.3s ease;
+}
+@keyframes ris-page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ 空态（控制台式） ============ */
+.ris__empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+}
+.ris__empty-code {
+    font-family: var(--ris-mono);
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: var(--ris-text-3);
+}
+.ris__empty-msg { font-size: 13px; color: var(--ris-text-2); }
+
+/* ============ 底部悬浮胶囊 Dock（视觉标志） ============ */
+.ris__dock {
+    flex: 0 0 auto;
+    align-self: center;
+    display: flex;
+    align-items: stretch;
+    max-width: min(92%, 680px);
+    margin: 0 0 calc(18px + env(safe-area-inset-bottom));
+    background: var(--ris-surface);
+    border: 1px solid var(--ris-border);
+    border-radius: 999px;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+.ris__dock-scroll {
+    display: flex;
+    gap: 2px;
+    padding: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.ris__dock-scroll::-webkit-scrollbar { display: none; }
+
+.ris__dock-btn {
+    flex: 0 0 auto;
+    min-width: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 14px 7px;
+    background: none;
+    border: none;
+    color: var(--ris-text-2);
+    cursor: pointer;
+    border-radius: 999px;
+    position: relative;
+    transition: color 0.18s, background 0.18s;
+}
+.ris__dock-btn svg { width: 18px; height: 18px; }
+.ris__dock-label {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    position: relative;
+    padding-bottom: 3px;
+}
+.ris__dock-btn:hover { color: var(--ris-text); }
+.ris__dock-btn.is-on { color: var(--ris-text); }
+.ris__dock-btn.is-on .ris__dock-label::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: 14px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.6;
+}
+.ris__dock-badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--ris-surface-2);
+    border: 1px solid var(--ris-border-2);
+    color: var(--ris-text-2);
+    font-family: var(--ris-mono);
+    font-size: 9px;
+    line-height: 13px;
+    text-align: center;
+    box-sizing: border-box;
+}
+.ris__dock-more {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    background: none;
+    border: none;
+    border-left: 1px solid var(--ris-border);
+    color: var(--ris-text-3);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.ris__dock-more:hover { color: var(--ris-text); background: var(--ris-surface-2); }
+.ris__dock-more svg { width: 16px; height: 16px; }
+
+/* ============ 动效 ============ */
+@keyframes ris-breathe {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+/* ============ 移动端 ============ */
+@media (max-width: 600px) {
+    .ris__head { padding: 14px 16px 12px; }
+    .ris__brand-name { letter-spacing: 0.22em; }
+    .ris__dock { max-width: 96%; margin-bottom: calc(12px + env(safe-area-inset-bottom)); }
+    .ris__dock-btn { min-width: 56px; padding: 7px 11px 6px; }
+    .ris__dock-btn svg { width: 17px; height: 17px; }
+}
