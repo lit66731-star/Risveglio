@@ -117,6 +117,18 @@ function buildButton() {
 
 // ---------------- 初始化 ----------------
 jQuery(async () => {
+    // ---------------- 适配层（防火墙） ----------------
+    // Runtime 只通过 window.Risveglio.adapters.* 读上游，绝不直接碰 window.Serendipity / window.Amor。
+    // 动态 import + try/catch：adapter 加载失败时降级，不拖垮面板壳（Contract §11）。
+    try {
+        const { SerendipityAdapter } = await import('./adapters/serendipity.js');
+        window.Risveglio = window.Risveglio || {};
+        window.Risveglio.adapters = window.Risveglio.adapters || {};
+        window.Risveglio.adapters.serendipity = SerendipityAdapter;
+    } catch (err) {
+        console.warn('[Risveglio] SerendipityAdapter 加载失败，已降级：', err);
+    }
+
     buildButton();
     buildPanel();
 
