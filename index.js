@@ -126,6 +126,7 @@ jQuery(async () => {
         import('./adapters/chat.js'),
         import('./adapters/capability.js'),
         import('./runtime/revision.js'),
+        import('./runtime/entry.js'),
     ]);
     window.Risveglio = window.Risveglio || {};
     window.Risveglio.adapters = window.Risveglio.adapters || {};
@@ -164,6 +165,21 @@ jQuery(async () => {
         }
     } else {
         console.warn('[Risveglio] Runtime Revision 模块加载失败：', settled[4].reason);
+    }
+
+    // Runtime Entry（Phase 3）：computeRevision → NO CHANGE Gate → stop / continue。
+    if (settled[5].status === 'fulfilled') {
+        window.Risveglio.runtime = {
+            run: () => settled[5].value.run(window.Risveglio.adapters, window.Risveglio.matrix),
+        };
+        try {
+            const decision = window.Risveglio.runtime.run();
+            console.log('[Risveglio] Runtime gate (init, 预期 no_change):', decision);
+        } catch (err) {
+            console.warn('[Risveglio] Runtime gate 运行失败：', err);
+        }
+    } else {
+        console.warn('[Risveglio] Runtime Entry 模块加载失败：', settled[5].reason);
     }
 
     buildButton();
