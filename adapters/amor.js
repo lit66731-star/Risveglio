@@ -5,13 +5,12 @@
    本文件只「读」Amor 此刻已经存在的 Interpretation，绝不触发/请求 Amor 规划（Phase 1）。
    ========================================================================== */
 
-import { makeEnvelope, probe, deepClone, fingerprint, callableResult } from './_shared.js';
+import { makeEnvelope, probe, deepClone, fingerprint, callableResult, currentScopeKey } from './_shared.js';
 
 const SOURCE = 'amor';
 
-// §9 缓存：getDirection() 一次调用同时缓存 direction + revision；getRevision() 只读缓存。
-// TODO: 缓存键改为「角色 + 聊天」作用域（ChatAdapter 落地后接入）。
-let _cache = null;
+// §9 缓存：按「角色 + 聊天」作用域隔离。getDirection() 一次调用完成「读 → 规范化 → 缓存 → 返回」。
+const _cache = new Map(); // scopeKey -> { revision, direction, at }
 
 function _ns() {
     return (typeof window !== 'undefined') ? window.Amor : null;
@@ -32,6 +31,8 @@ function _degraded(error) {
 }
 
 function getDirection(opts = {}) {
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
 
     let raw = null;
@@ -76,7 +77,7 @@ function getDirection(opts = {}) {
         storyHealth: callableResult(raw.storyHealth),
     };
 
-    _cache = { revision, data, at: Date.now() };
+    _cache.set(scopeKey, { revision, direction: data, at: Date.now() });
 
     return makeEnvelope(SOURCE, {
         available: true,
@@ -87,9 +88,11 @@ function getDirection(opts = {}) {
     });
 }
 
-/** §9：只读缓存。 */
+/** §9：只读当前 scope 已缓存的 revision。 */
 function getRevision() {
-    return _cache ? _cache.revision : null;
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return null;
+    return _cache.get(scopeKey)?.revision ?? null;
 }
 
 export const AmorAdapter = {

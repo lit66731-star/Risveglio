@@ -5,13 +5,13 @@
    本文件是 Runtime 读 Serendipity 的唯一通道；Runtime 不得直接碰 window.Serendipity。
    ========================================================================== */
 
-import { makeEnvelope, probe, deepClone } from './_shared.js';
+import { makeEnvelope, probe, deepClone, currentScopeKey } from './_shared.js';
 
 const SOURCE = 'serendipity';
 
-// §9 缓存：getContext() 一次调用同时缓存 context + revision；getRevision() 只读缓存，绝不额外调用。
-// TODO: 缓存键改为「角色 + 聊天」作用域（ChatAdapter 落地后接入）。
-let _cache = null;
+// §9 缓存：按「角色 + 聊天」作用域隔离。getContext() 一次调用缓存 context + revision；
+// getRevision() 只读当前 scope 已缓存的 revision，绝不为了补缓存再次调 getDirectorContext()。
+const _cache = new Map(); // scopeKey -> { revision, context, foreshadows, at }
 
 function _ns() {
     return (typeof window !== 'undefined') ? window.Serendipity : null;
@@ -31,11 +31,9 @@ function _degraded(error) {
     });
 }
 
-/**
- * 规范化 getDirectorContext(opts)。
- * 注意：不带 opts 的旧用法返回拼接字符串（无 revision）——本 adapter 只用新用法（Contract §4.1）。
- */
 function getContext(opts = {}) {
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
 
     let raw = null;
@@ -69,7 +67,11 @@ function getContext(opts = {}) {
         text: raw.text,
     });
 
-    _cache = { revision, data, at: Date.now() };
+    const entry = _cache.get(scopeKey) || {};
+    entry.revision = revision;
+    entry.context = data;
+    entry.at = Date.now();
+    _cache.set(scopeKey, entry);
 
     return makeEnvelope(SOURCE, {
         available: true,
@@ -82,15 +84,22 @@ function getContext(opts = {}) {
 
 /** getForeshadows()：无独立 revision（Contract §7），信封 revision = null。 */
 function getForeshadows() {
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
     try {
         const raw = window.Serendipity.getForeshadows();
         if (raw == null) return _degraded('null result');
+        const data = deepClone(raw);
+        const entry = _cache.get(scopeKey) || {};
+        entry.foreshadows = data;
+        entry.at = Date.now();
+        _cache.set(scopeKey, entry);
         return makeEnvelope(SOURCE, {
             available: true,
             compatible: true,
             revision: null,
-            data: deepClone(raw),
+            data,
             meta: { source: SOURCE, degraded: false, error: null },
         });
     } catch (err) {
@@ -98,9 +107,11 @@ function getForeshadows() {
     }
 }
 
-/** §9：只读缓存，绝不为了「判断有没有变化」而额外调 getDirectorContext()。 */
+/** §9：只读当前 scope 已缓存的 revision，绝不额外调 getDirectorContext()。 */
 function getRevision() {
-    return _cache ? _cache.revision : null;
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return null;
+    return _cache.get(scopeKey)?.revision ?? null;
 }
 
 export const SerendipityAdapter = {

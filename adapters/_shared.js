@@ -29,6 +29,25 @@ export function probe(ns, method) {
     }
 }
 
+/**
+ * 当前「角色 + 聊天」作用域 key（Contract §9 缓存键）。
+ * 格式：`<characterId>::<chatId>`；拿不到可靠 character key 时退化成纯 chatId，不猜角色身份。
+ * @param {object} [ctx] 传入已读到的 ST 上下文（避免重复调 getContext）；不传则这里自己读。
+ * @returns {string|null} 无当前聊天返回 null。
+ */
+export function currentScopeKey(ctx) {
+    let c = ctx;
+    if (c == null) {
+        if (typeof window === 'undefined' || typeof window.getContext !== 'function') return null;
+        try { c = window.getContext(); } catch { return null; }
+    }
+    if (!c) return null;
+    const chatId = c.chatId ?? c.chatMetadata?.chat_id ?? null;
+    if (chatId == null || chatId === '') return null;
+    const characterKey = (c.characterId != null && c.characterId !== '') ? String(c.characterId) : null;
+    return characterKey ? `${characterKey}::${chatId}` : String(chatId);
+}
+
 /** 函数字段归一化（三态，不把失败伪装成 null）：
  *   { available:false }                  —— 上游没提供这个能力
  *   { available:true, ok:false, error }  —— 提供了但调用抛异常
