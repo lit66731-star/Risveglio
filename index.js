@@ -118,16 +118,21 @@ function buildButton() {
 // ---------------- 初始化 ----------------
 jQuery(async () => {
     // ---------------- 适配层（防火墙） ----------------
-    // Runtime 只通过 window.Risveglio.adapters.* 读上游，绝不直接碰 window.Serendipity / window.Amor。
-    // 动态 import + try/catch：adapter 加载失败时降级，不拖垮面板壳（Contract §11）。
-    try {
-        const { SerendipityAdapter } = await import('./adapters/serendipity.js');
-        window.Risveglio = window.Risveglio || {};
-        window.Risveglio.adapters = window.Risveglio.adapters || {};
-        window.Risveglio.adapters.serendipity = SerendipityAdapter;
-    } catch (err) {
-        console.warn('[Risveglio] SerendipityAdapter 加载失败，已降级：', err);
-    }
+    // Runtime 只通过 window.Risveglio.adapters.* 读上游，绝不直接碰 window.Serendipity / window.Amor / 聊天 API。
+    // Promise.allSettled 动态加载：任一 adapter 解析失败都只降级、不产生未处理 Promise rejection，也不拖垮面板壳（Contract §11）。
+    const settled = await Promise.allSettled([
+        import('./adapters/serendipity.js'),
+        import('./adapters/amor.js'),
+        import('./adapters/chat.js'),
+    ]);
+    window.Risveglio = window.Risveglio || {};
+    window.Risveglio.adapters = window.Risveglio.adapters || {};
+    if (settled[0].status === 'fulfilled') window.Risveglio.adapters.serendipity = settled[0].value.SerendipityAdapter;
+    else console.warn('[Risveglio] SerendipityAdapter 加载失败，已降级：', settled[0].reason);
+    if (settled[1].status === 'fulfilled') window.Risveglio.adapters.amor = settled[1].value.AmorAdapter;
+    else console.warn('[Risveglio] AmorAdapter 加载失败，已降级：', settled[1].reason);
+    if (settled[2].status === 'fulfilled') window.Risveglio.adapters.chat = settled[2].value.ChatAdapter;
+    else console.warn('[Risveglio] ChatAdapter 加载失败，已降级：', settled[2].reason);
 
     buildButton();
     buildPanel();

@@ -29,12 +29,17 @@ export function probe(ns, method) {
     }
 }
 
-/** 安全调用：函数（如 Amor 的 inspection/storyHealth）用 try/catch 包裹，失败返回 null。 */
-export function safeCall(fn, ...args) {
+/** 函数字段归一化（三态，不把失败伪装成 null）：
+ *   { available:false }                  —— 上游没提供这个能力
+ *   { available:true, ok:false, error }  —— 提供了但调用抛异常
+ *   { available:true, ok:true, value }   —— 调用成功（value 即使为空也是真实结果）
+ */
+export function callableResult(fn) {
+    if (typeof fn !== 'function') return { available: false, ok: false, value: null };
     try {
-        return typeof fn === 'function' ? fn(...args) : null;
-    } catch {
-        return null;
+        return { available: true, ok: true, value: fn() };
+    } catch (err) {
+        return { available: true, ok: false, value: null, error: err?.message || 'threw' };
     }
 }
 
