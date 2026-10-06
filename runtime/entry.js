@@ -31,5 +31,9 @@ export function run(adapters = {}, matrix = {}, coreConfig = {}) {
     const actor = assembleActor(context, world);
     const guard = assembleGuard(world, actor);
     const coreInput = assembleCore(context, world, actor, guard, coreConfig);
+    // 到这里刻意停住：run() 只做「Runtime 构造」，绝不调用 generateCore()。这不是遗漏，
+    // 而是把两段性质不同的工作分开 —— 前半段（到此为止）纯读/确定性/无副作用，可重复执行、测试、审计；
+    // 后半段（generateCore 起）才产生网络副作用与非确定性，只能由外部显式触发。
+    // 因此「一次 run 最多一次生成」是构造性保证，不是靠约定。
     return { stopped: false, context, world, actor, guard, coreInput };
 }
