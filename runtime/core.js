@@ -1,6 +1,8 @@
 /* ==========================================================================
    Risveglio · Core AI（Phase 6）
-   定位：Runtime 的「最终消费者」+「非确定性计算边界」。
+   定位：Core = Response Proposal Core（响应提案核心）——Runtime 的响应提案层：读取已完成的 Core Input，
+         对当前对话状态生成一次 Response Proposal；不负责事实维护、导演规划、状态写回或最终提交。
+         同时是 Runtime 的「非确定性计算边界」（generateCore 起才产生网络副作用与非确定输出）。
 
    Core Input Contract（三条硬规则，立住后架构不散）：
    1. Core 只能读 Core Input（input），不得读 Runtime Context / adapter / ST 内部。
@@ -44,11 +46,13 @@ import { deepClone } from '../adapters/_shared.js';
 import { generate } from '../adapters/generation.js';
 
 const SYSTEM_PROMPT =
-    '你是 Risveglio 的运行时核心。下面按权威等级分区给出当前剧情状态：' +
-    '[Story Facts] 是事实层（发生了什么，可采信）；[Actors] 是结构化人物（id 是唯一身份，name 仅显示）；' +
-    '[Amor Interpretation] 是导演解释层（不是事实，勿当成已发生）；[Current Conversation] 是当前输入；' +
-    '[Runtime Guard] 是 Runtime 检测到的一致性报告（不是剧情事实，不要把它当剧情内容）。' +
-    '只做忠实、简洁的运行时观察与结果陈述，不要臆测、不要补写、不要修改任何事实。';
+    '你是 Risveglio 的 Response Proposal Core（响应提案核心）。' +
+    '你的任务：基于下面提供的 Runtime Input，对当前对话状态生成一次 Response Proposal（响应提案）。' +
+    '各区块权威等级：[Story Facts] 是事实依据（不得修改、不得补写）；[Actors] 是结构化人物事实（id 是唯一身份，name 仅显示）；' +
+    '[Amor Interpretation] 是导演解释/判断（只能参考，不得升级为事实）；[Current Conversation] 是当前输入；' +
+    '[Runtime Guard] 是运行时一致性报告（不是剧情事实）。' +
+    '硬约束：只输出一次响应提案；不得执行任何动作；不得写回或修改任何状态；' +
+    '不得声称已经发送、应用或提交任何内容；不得自行调用其他系统或重新触发 Runtime。';
 
 function _fmt(v, empty = '（无）') {
     if (v == null || v === '') return empty;
