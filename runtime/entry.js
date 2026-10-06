@@ -1,20 +1,24 @@
 /* ==========================================================================
-   Risveglio · Runtime Entry（Phase 3，最小版）
-   流程：computeRevision → gate → stop / continue。
-   changed === true 之后该做什么（Context Assembly / World / Actor / Guard / Core AI）
-   尚未实现，留到后续 Phase。本阶段只保证：NO CHANGE 时在 Gate 处停止，任何 downstream 不执行。
+   Risveglio · Runtime Entry（Phase 4）
+   流程：computeRevision → gate → stop / (continue → Context Assembly)。
+   changed === true 之后只做一件事：组装 Runtime Context（Phase 4），然后停住。
+   World / Actor / Guard / Core AI 等 downstream 尚未接入。
    ========================================================================== */
 
 import { computeRevision } from './revision.js';
 import { gate } from './gate.js';
+import { assembleContext } from './context.js';
+
+export { assembleContext };
 
 /**
- * @returns {{stopped: boolean, reason?: string}}
+ * @returns {{stopped: boolean, reason?: string, context?: object}}
  */
 export function run(adapters = {}, matrix = {}) {
     const revision = computeRevision(adapters, matrix);
     const decision = gate(revision);
     if (decision.stopped) return decision;
-    // changed === true：允许继续（downstream 尚未接入）。
-    return { stopped: false };
+    // changed === true：组装当前事实上下文（Assembly 纯搬运，不做 Recall/筛选）。
+    const context = assembleContext(adapters, matrix);
+    return { stopped: false, context };
 }

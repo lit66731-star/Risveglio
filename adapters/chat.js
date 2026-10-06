@@ -49,6 +49,7 @@ function _read() {
 
     // chat 指纹 = 作用域 + 消息数 + 末条消息 hash（Contract §7）。
     const scope = {
+        characterId: (c.characterId != null && c.characterId !== '') ? String(c.characterId) : null,
         chatId: c.chatId ?? c.chatMetadata?.chat_id ?? null,
         messageCount: chat.length,
         lastRole: last ? (last.is_user ? 'user' : (last.is_system ? 'system' : 'char')) : null,

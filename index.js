@@ -167,10 +167,11 @@ jQuery(async () => {
         console.warn('[Risveglio] Runtime Revision 模块加载失败：', settled[4].reason);
     }
 
-    // Runtime Entry（Phase 3）：computeRevision → NO CHANGE Gate → stop / continue。
+    // Runtime Entry（Phase 4）：computeRevision → NO CHANGE Gate → stop / (continue → Context Assembly)。
     if (settled[5].status === 'fulfilled') {
         window.Risveglio.runtime = {
             run: () => settled[5].value.run(window.Risveglio.adapters, window.Risveglio.matrix),
+            assemble: () => settled[5].value.assembleContext(window.Risveglio.adapters, window.Risveglio.matrix),
         };
         try {
             const decision = window.Risveglio.runtime.run();
