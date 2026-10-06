@@ -110,6 +110,40 @@ function getForeshadows() {
     }
 }
 
+/** getEntities()：结构化角色实体（唯一 id + 身份域 world·timeline·identity + 状态），供 Actor 做身份解析。纯读，不触发 AI。 */
+function getEntities() {
+    if (!probe(_ns(), 'getEntities')) return _degraded('unavailable');
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no_scope');
+    let raw = null;
+    try {
+        raw = window.Serendipity.getEntities();
+    } catch (err) {
+        console.warn('[Risveglio][serendipity] getEntities threw:', err);
+        return _degraded('threw');
+    }
+    if (raw == null) return _degraded('null_result');
+    const compatible = raw.schema === 1 && Array.isArray(raw.items) && typeof raw.revision === 'string';
+    if (!compatible) {
+        return makeEnvelope(SOURCE, {
+            available: true,
+            compatible: false,
+            revision: null,
+            data: null,
+            meta: { source: SOURCE, degraded: true, error: 'unexpected_shape' },
+        });
+    }
+    const revision = raw.revision;
+    const data = deepClone(raw.items); // 结构化实体数组；name 只是显示属性，身份靠 id + world/timeline/identity
+    return makeEnvelope(SOURCE, {
+        available: true,
+        compatible: true,
+        revision,
+        data,
+        meta: { source: SOURCE, degraded: false, error: null },
+    });
+}
+
 /** §9：只读当前 scope 已缓存的 revision，绝不额外调 getDirectorContext()。 */
 function getRevision() {
     const scopeKey = currentScopeKey();
@@ -122,5 +156,6 @@ export const SerendipityAdapter = {
     available,
     getContext,
     getForeshadows,
+    getEntities,
     getRevision,
 };

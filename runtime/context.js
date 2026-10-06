@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Risveglio · Runtime Context Assembly（Phase 4）
+   Risveglio · Runtime Context Assembly（Phase 4 + rev）
    定位：Gate 判定 changed === true 之后，把「当前事实上下文」组装成统一的 Runtime Context。
    边界（本阶段严格只做这一件事，以下全部不做）：
    - 只「搬运 / 规范化」当前事实，不判断哪些事实重要（排序/筛选/召回/摘要/压缩/冲突判断都归后面）。
@@ -8,6 +8,8 @@
    - 能力判断交给 Adapter Matrix（available/compatible），Assembly 不重新解释 Capability。
    - 确定性：相同 adapter state → 相同输出（无随机、无时间戳、无累积状态）。
    data 语义：null = 无此来源（unavailable/no_scope/threw...）；对象 = 有来源（可为空 {}）。
+   rev：serendipity.data 额外并进结构化 entities（原始实体事实，含 id/身份域）；
+   sections.characters 仍是损失型文本，二者并存、不互相替代，不同消费者各取所需。
    ========================================================================== */
 
 import { deepClone } from '../adapters/_shared.js';
@@ -21,6 +23,15 @@ function _section(matrixEntry, env) {
     };
 }
 
+// Serendipity 特例：data 里除 sections/text（导演上下文文本）外，并进结构化 entities 事实。
+function _serendipitySection(matrixEntry, contextEnv, entitiesEnv) {
+    const base = _section(matrixEntry, contextEnv);
+    if (base.data != null) {
+        base.data.entities = entitiesEnv ? deepClone(entitiesEnv.data) : null;
+    }
+    return base;
+}
+
 /**
  * 组装 Runtime Context（Phase 4 唯一产出）。
  * @param {object} adapters  window.Risveglio.adapters
@@ -30,6 +41,7 @@ function _section(matrixEntry, env) {
 export function assembleContext(adapters = {}, matrix = {}) {
     // 每个来源只读一次：既避免重复读，也保证同一次组装内 scope 与 facts 出自同一快照。
     const s = adapters.serendipity ? adapters.serendipity.getContext() : null;
+    const se = adapters.serendipity ? adapters.serendipity.getEntities() : null;
     const a = adapters.amor ? adapters.amor.getDirection() : null;
     const c = adapters.chat ? adapters.chat.getSnapshot() : null;
 
@@ -38,7 +50,7 @@ export function assembleContext(adapters = {}, matrix = {}) {
             characterId: c?.data?.characterId ?? null,
             chatId: c?.data?.chatId ?? null,
         },
-        serendipity: _section(matrix.serendipity, s),
+        serendipity: _serendipitySection(matrix.serendipity, s, se),
         amor: _section(matrix.amor, a),
         chat: _section(matrix.chat, c),
     };
