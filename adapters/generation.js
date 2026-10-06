@@ -10,6 +10,17 @@
 
 const TIMEOUT_MS = 120000; // 单次生成上限，防止挂起
 
+// 机器错误码（Core Result 的 error.code 来源，见 runtime/core.js）。
+// 只分到这一级：config_missing / timeout / network / http_4xx / http_5xx / empty_result。
+// code 是程序判断依据、message 是人类诊断信息；以后中文文案改了也不影响 Runtime。
+class ApiError extends Error {
+    constructor(code, message) {
+        super(message);
+        this.name = 'ApiError';
+        this.code = code;
+    }
+}
+
 // 把可能出现在报错里的密钥抹掉（报错会进 toast/控制台，可能被截图/转发）
 function redactSecrets(text, key) {
     let t = String(text == null ? '' : text);
@@ -38,7 +49,7 @@ function endpoint(url) {
  */
 export async function generate(apiCfg, messages, maxTokens) {
     const { url, key, model } = apiCfg || {};
-    if (!url || !model) throw new Error('Core API 未配置（url/model 为空）');
+    if (!url || !model) throw new ApiError('config_missing', 'Core API 未配置（url/model 为空）');
 
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers.Authorization = 'Bearer ' + String(key).trim();
@@ -57,8 +68,8 @@ export async function generate(apiCfg, messages, maxTokens) {
             signal: ctrl.signal,
         });
     } catch (e) {
-        if (e && e.name === 'AbortError') throw new Error('Core 生成超时（' + Math.round(TIMEOUT_MS / 1000) + ' 秒）');
-        throw new Error(redactSecrets(e && e.message, key) || '网络请求失败');
+        if (e && e.name === 'AbortError') throw new ApiError('timeout', 'Core 生成超时（' + Math.round(TIMEOUT_MS / 1000) + ' 秒）');
+        throw new ApiError('network', redactSecrets(e && e.message, key) || '网络请求失败');
     } finally {
         clearTimeout(timer);
     }
@@ -69,11 +80,13 @@ export async function generate(apiCfg, messages, maxTokens) {
 
     if (!res.ok || (d && d.error)) {
         const msg = (d && d.error && (d.error.message || (typeof d.error === 'string' ? d.error : ''))) || text;
-        throw new Error('HTTP ' + res.status + ' ' + redactSecrets(msg, key));
+        // 4xx/5xx 只分到这一级，不细分 401/403/429；200+error 体的 provider 级拒绝按 4xx 级处理。
+        const code = res.status >= 500 ? 'http_5xx' : 'http_4xx';
+        throw new ApiError(code, 'HTTP ' + res.status + ' ' + redactSecrets(msg, key));
     }
 
     const out = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-    if (out == null) throw new Error('Core 返回内容为空');
+    if (out == null) throw new ApiError('empty_result', 'Core 返回内容为空');
 
     return {
         text: out,

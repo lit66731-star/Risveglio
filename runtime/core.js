@@ -28,6 +28,12 @@
              Amor 的 foreshadowPlan/choices/doctorOrders/doctorReport/inspection（内部导演工具，语义特殊），
              整个 chat history，Serendipity 的 purpose/tokenBudget/estimatedTokens/truncated/text 原文。
 
+   Result Contract（generateCore 产出，冻结；详见函数 JSDoc）：
+     generated → { status, scope, proposal:{type:'response', text}, generation:{model, tokenUsage} }
+     skipped   → { status, reason:'disabled', scope }            // 无 proposal / 无 generation
+     failed    → { status, scope, error:{code, message} }        // code 由 Generation Adapter 提供、Core 透传
+   proposal = Core 的提案（不是事实、不是最终消息）；generation = 执行元数据（text 已上移到 proposal.text）。
+
    边界：
    - 确定性 assembleCore：构造 Core Input + prompt，纯函数、可 node 测。
    - 非确定性 generateCore：经 Generation Adapter 调独立 Core API（唯一允许非确定的位置）。
@@ -199,10 +205,14 @@ export function assembleCore(context = {}, world = {}, actor = {}, guard = {}, c
 
 /**
  * Core AI Generation（非确定性）：经 Generation Adapter 调独立 Core API。
- * 结果状态：generated / skipped / failed。错误信息用 Core 自己的字符串，不复用 Adapter 错误码。
+ * Result Contract（冻结）：
+ *   generated → { status, scope, proposal:{type:'response', text}, generation:{model, tokenUsage} }
+ *   skipped   → { status, reason:'disabled', scope }             // 无 proposal / 无 generation
+ *   failed    → { status, scope, error:{code, message} }         // code 由 Adapter 提供、Core 透传不猜文案
+ * proposal 是 Core 的提案（不是事实、不是最终消息）；generation 是执行元数据（text 已上移到 proposal.text）。
  * @param {object} corePackage  assembleCore() 产出
  * @param {object} coreConfig   {enabled, api:{url,key,model}, tokenBudget}
- * @returns {Promise<{status: string, scope: object|null, generation: object|null, reason?: string, error?: string}>}
+ * @returns {Promise<object>}
  */
 export async function generateCore(corePackage = null, coreConfig = {}) {
     const scope = deepClone(corePackage?.input?.scope ?? null);
@@ -211,18 +221,27 @@ export async function generateCore(corePackage = null, coreConfig = {}) {
             status: 'skipped',
             reason: (corePackage && corePackage.skippedReason) || 'disabled',
             scope,
-            generation: null,
         };
     }
     try {
         const out = await generate(coreConfig.api, corePackage.request.messages, corePackage.request.maxTokens);
-        return { status: 'generated', scope, generation: out };
+        // 语义提升：Adapter 的 {text, model, tokenUsage} → Core Result。
+        // text 提升成 proposal.text（提案，不是事实也不是最终消息）；model/tokenUsage 留在 generation（执行元数据）。
+        return {
+            status: 'generated',
+            scope,
+            proposal: { type: 'response', text: out.text },
+            generation: { model: out.model, tokenUsage: out.tokenUsage },
+        };
     } catch (err) {
+        // error.code 由 Generation Adapter 提供，Core 只透传不猜文案；'unknown' 仅防御（正常流不触发）。
         return {
             status: 'failed',
             scope,
-            generation: null,
-            error: String((err && err.message) || err),
+            error: {
+                code: (err && err.code) || 'unknown',
+                message: (err && err.message) ? String(err.message) : String(err),
+            },
         };
     }
 }
