@@ -3,6 +3,7 @@
    上游：window.Serendipity（Serendipity 2.3.14）
    唯一接触点：getDirectorContext(opts)、getForeshadows()
    本文件是 Runtime 读 Serendipity 的唯一通道；Runtime 不得直接碰 window.Serendipity。
+   错误码：unavailable / no_scope / null_result / unexpected_shape / threw
    ========================================================================== */
 
 import { makeEnvelope, probe, deepClone, currentScopeKey } from './_shared.js';
@@ -32,18 +33,19 @@ function _degraded(error) {
 }
 
 function getContext(opts = {}) {
-    const scopeKey = currentScopeKey();
-    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no_scope');
 
     let raw = null;
     try {
         raw = window.Serendipity.getDirectorContext({ ...opts });
     } catch (err) {
-        return _degraded(err?.message || 'getDirectorContext threw');
+        console.warn('[Risveglio][serendipity] getDirectorContext threw:', err);
+        return _degraded('threw');
     }
 
-    if (raw == null) return _degraded('null result（settings 未加载）');
+    if (raw == null) return _degraded('null_result');
 
     const compatible = raw.schema === 1 && typeof raw.revision === 'string';
     if (!compatible) {
@@ -52,7 +54,7 @@ function getContext(opts = {}) {
             compatible: false,
             revision: null,
             data: null,
-            meta: { source: SOURCE, degraded: true, error: 'unexpected shape（可能是旧用法）' },
+            meta: { source: SOURCE, degraded: true, error: 'unexpected_shape' },
         });
     }
 
@@ -84,12 +86,12 @@ function getContext(opts = {}) {
 
 /** getForeshadows()：无独立 revision（Contract §7），信封 revision = null。 */
 function getForeshadows() {
-    const scopeKey = currentScopeKey();
-    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no_scope');
     try {
         const raw = window.Serendipity.getForeshadows();
-        if (raw == null) return _degraded('null result');
+        if (raw == null) return _degraded('null_result');
         const data = deepClone(raw);
         const entry = _cache.get(scopeKey) || {};
         entry.foreshadows = data;
@@ -103,7 +105,8 @@ function getForeshadows() {
             meta: { source: SOURCE, degraded: false, error: null },
         });
     } catch (err) {
-        return _degraded(err?.message || 'getForeshadows threw');
+        console.warn('[Risveglio][serendipity] getForeshadows threw:', err);
+        return _degraded('threw');
     }
 }
 

@@ -2,6 +2,7 @@
    Risveglio · ChatAdapter（聊天作用域 / chat 指纹）
    上游：SillyTavern 当前聊天数据（window.getContext）
    只读聊天「元数据」算 chat 指纹（作用域 + 消息数 + 末条消息），绝不碰聊天 AI 接口（Contract §11）。
+   错误码：unavailable / no_scope / null_result / unexpected_shape / threw
    ========================================================================== */
 
 import { makeEnvelope, deepClone, fingerprint, hashString, currentScopeKey } from './_shared.js';
@@ -36,12 +37,12 @@ function _degraded(error) {
     });
 }
 
-// 重新计算当前 chat 快照 + 指纹（不读缓存）。
-function _snapshot() {
+// 重新计算当前 chat 快照 + 指纹（不读缓存）；区分「无 getContext」和「无当前聊天」。
+function _read() {
     const c = _ctx();
-    if (c == null || !Array.isArray(c.chat)) return null;
+    if (c == null || !Array.isArray(c.chat)) return { ok: false, error: 'unavailable' };
     const scopeKey = currentScopeKey(c);
-    if (scopeKey == null) return null;
+    if (scopeKey == null) return { ok: false, error: 'no_scope' };
     const chat = c.chat;
     const last = chat.length ? chat[chat.length - 1] : null;
     const lastMes = last ? String(last.mes ?? '') : '';
@@ -55,6 +56,7 @@ function _snapshot() {
     };
 
     return {
+        ok: true,
         scopeKey,
         revision: fingerprint(scope),
         data: deepClone(scope),
@@ -64,34 +66,34 @@ function _snapshot() {
 }
 
 function getSnapshot() {
-    const s = _snapshot();
-    if (s == null) return _degraded('unavailable（无当前聊天）');
-    _cache.set(s.scopeKey, {
-        revision: s.revision,
-        messageCount: s.messageCount,
-        lastMessageHash: s.lastMessageHash,
+    const r = _read();
+    if (!r.ok) return _degraded(r.error);
+    _cache.set(r.scopeKey, {
+        revision: r.revision,
+        messageCount: r.messageCount,
+        lastMessageHash: r.lastMessageHash,
         at: Date.now(),
     });
     return makeEnvelope(SOURCE, {
         available: true,
         compatible: true,
-        revision: s.revision,
-        data: s.data,
+        revision: r.revision,
+        data: r.data,
         meta: { source: SOURCE, degraded: false, error: null },
     });
 }
 
 // 每次询问都重新计算当前状态（chat 指纹必须新鲜），并刷新缓存供下次比较。
 function getRevision() {
-    const s = _snapshot();
-    if (s == null) return null;
-    _cache.set(s.scopeKey, {
-        revision: s.revision,
-        messageCount: s.messageCount,
-        lastMessageHash: s.lastMessageHash,
+    const r = _read();
+    if (!r.ok) return null;
+    _cache.set(r.scopeKey, {
+        revision: r.revision,
+        messageCount: r.messageCount,
+        lastMessageHash: r.lastMessageHash,
         at: Date.now(),
     });
-    return s.revision;
+    return r.revision;
 }
 
 export const ChatAdapter = {

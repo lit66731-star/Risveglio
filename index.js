@@ -124,6 +124,7 @@ jQuery(async () => {
         import('./adapters/serendipity.js'),
         import('./adapters/amor.js'),
         import('./adapters/chat.js'),
+        import('./adapters/capability.js'),
     ]);
     window.Risveglio = window.Risveglio || {};
     window.Risveglio.adapters = window.Risveglio.adapters || {};
@@ -133,6 +134,20 @@ jQuery(async () => {
     else console.warn('[Risveglio] AmorAdapter 加载失败，已降级：', settled[1].reason);
     if (settled[2].status === 'fulfilled') window.Risveglio.adapters.chat = settled[2].value.ChatAdapter;
     else console.warn('[Risveglio] ChatAdapter 加载失败，已降级：', settled[2].reason);
+
+    // Capability Probe：只检测能力、不启动能力（Contract §8）。产出 Adapter Matrix 供 Runtime 初始化用。
+    if (settled[3].status === 'fulfilled') {
+        try {
+            window.Risveglio.matrix = settled[3].value.runCapabilityProbe(window.Risveglio.adapters);
+        } catch (err) {
+            console.warn('[Risveglio] Capability Probe 失败：', err);
+        }
+    } else {
+        console.warn('[Risveglio] Capability Probe 模块加载失败：', settled[3].reason);
+    }
+    if (window.Risveglio.matrix) {
+        console.log('[Risveglio] Adapter Matrix:', window.Risveglio.matrix);
+    }
 
     buildButton();
     buildPanel();

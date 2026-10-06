@@ -3,6 +3,7 @@
    上游：window.Amor（Amor 1.15.1）
    唯一接触点：getStoryDirection({ include })
    本文件只「读」Amor 此刻已经存在的 Interpretation，绝不触发/请求 Amor 规划（Phase 1）。
+   错误码：unavailable / no_scope / null_result / unexpected_shape / threw
    ========================================================================== */
 
 import { makeEnvelope, probe, deepClone, fingerprint, callableResult, currentScopeKey } from './_shared.js';
@@ -31,18 +32,19 @@ function _degraded(error) {
 }
 
 function getDirection(opts = {}) {
-    const scopeKey = currentScopeKey();
-    if (scopeKey == null) return _degraded('no scope（无当前聊天）');
     if (!available()) return _degraded('unavailable');
+    const scopeKey = currentScopeKey();
+    if (scopeKey == null) return _degraded('no_scope');
 
     let raw = null;
     try {
         raw = window.Amor.getStoryDirection({ include: opts.include });
     } catch (err) {
-        return _degraded(err?.message || 'getStoryDirection threw');
+        console.warn('[Risveglio][amor] getStoryDirection threw:', err);
+        return _degraded('threw');
     }
 
-    if (raw == null) return _degraded('null result（无当前聊天）');
+    if (raw == null) return _degraded('null_result');
 
     const compatible = raw.revision != null;
     if (!compatible) {
@@ -51,7 +53,7 @@ function getDirection(opts = {}) {
             compatible: false,
             revision: null,
             data: null,
-            meta: { source: SOURCE, degraded: true, error: 'unexpected shape（无 revision）' },
+            meta: { source: SOURCE, degraded: true, error: 'unexpected_shape' },
         });
     }
 
