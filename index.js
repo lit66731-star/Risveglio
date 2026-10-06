@@ -127,6 +127,7 @@ jQuery(async () => {
         import('./adapters/capability.js'),
         import('./runtime/revision.js'),
         import('./runtime/entry.js'),
+        import('./runtime/trigger.js'),
     ]);
     window.Risveglio = window.Risveglio || {};
     window.Risveglio.adapters = window.Risveglio.adapters || {};
@@ -194,6 +195,19 @@ jQuery(async () => {
         }
     } else {
         console.warn('[Risveglio] Runtime Entry 模块加载失败：', settled[5].reason);
+    }
+
+    // Trigger（Phase 8）：Runtime 唤醒编排层。只暴露手动 window.Risveglio.trigger()，
+    // 合并并发触发、调用既有 runtime.run()；不比较指纹、不自动生成、不接 ST 自动事件。
+    if (settled[6].status === 'fulfilled') {
+        window.Risveglio.trigger = () => settled[6].value.trigger(
+            settled[5].value?.run,
+            window.Risveglio.adapters,
+            window.Risveglio.matrix,
+            window.Risveglio.coreConfig,
+        );
+    } else {
+        console.warn('[Risveglio] Trigger 模块加载失败：', settled[6].reason);
     }
 
     buildButton();
